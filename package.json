@@ -1,0 +1,17 @@
+{
+  "name": "farmora",
+  "version": "1.0.0",
+  "description": "Farmora - Smart India Hackathon Prototype",
+  "scripts": {
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
+    "frontend": "npx serve frontend -l 5173",
+    "backend": "cd backend && npm run dev",
+    "install:all": "npm install && cd backend && npm install",
+    "db:push": "cd backend && npx prisma db push",
+    "db:seed": "cd backend && node prisma/seed.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "serve": "^14.2.6"
+  }
+}

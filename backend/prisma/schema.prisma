@@ -1,0 +1,289 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Core User model (extended with profile fields)
+// ─────────────────────────────────────────────
+model User {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String
+  phone          String   @unique
+  email          String?
+  password       String
+  role           String   // FARMER, BUYER, ADMIN
+  location       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Extended profile fields
+  gender         String?  // Male, Female, Other, Prefer not to say
+  dateOfBirth    DateTime?
+  address        String?
+  city           String?
+  state          String?
+  pincode        String?
+  profilePhotoUrl String?  // base64 data URL or external URL
+  accountStatus  String?  @default("Active") // Active, Inactive
+
+  farmerProfile  FarmerProfile?
+  buyerProfile   BuyerProfile?
+  managerProfile ManagerProfile?
+}
+
+// ─────────────────────────────────────────────
+// Farmer Profile (role-specific)
+// ─────────────────────────────────────────────
+model FarmerProfile {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+  farms     Farm[]
+  lots      Lot[]
+
+  // Farming information
+  farmName              String?
+  farmLocation          String?
+  landArea              Float?
+  landAreaUnit          String?  // Acres, Hectares
+  primaryCrops          String?  // comma-separated
+  secondaryCrops        String?
+  farmingType           String?  // Organic, Conventional, Mixed
+  irrigationType        String?  // Rainfed, Borewell, Canal, Drip, Other
+  yearsOfExperience     Int?
+
+  // Optional
+  farmerId              String?
+  fpo                   String?  // Farmer Producer Organization
+  storageAvailability   Boolean? @default(false)
+  preferredMarkets      String?
+  preferredSellingMethod String?
+}
+
+// ─────────────────────────────────────────────
+// Buyer Profile (role-specific)
+// ─────────────────────────────────────────────
+model BuyerProfile {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @unique @db.ObjectId
+  user           User     @relation(fields: [userId], references: [id])
+  isVerified     Boolean  @default(false)
+  trustScore     Int      @default(0)
+  documents      String?  // JSON string or URL
+  requirements   Requirement[]
+  offers         Offer[]
+
+  // Business information
+  businessName          String?
+  businessType          String?  // Wholesaler, Retailer, Processor, Exporter, Institutional Buyer, Other
+  buyerId               String?
+  registrationNumber    String?
+  gstNumber             String?
+  businessAddress       String?
+  procurementLocation   String?
+
+  // Procurement preferences
+  cropsInterestedIn     String?  // comma-separated
+  requiredQuantity      Float?
+  quantityUnit          String?  // kg, tonnes
+  preferredQualityGrade String?
+  preferredMarkets      String?
+  minPrice              Float?
+  maxPrice              Float?
+  preferredDeliveryLocation String?
+}
+
+// ─────────────────────────────────────────────
+// Manager Profile (ADMIN role)
+// ─────────────────────────────────────────────
+model ManagerProfile {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @unique @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
+
+  // Organization information
+  managerId             String?
+  organization          String?
+  designation           String?
+  employeeId            String?
+  officeLocation        String?
+  dateOfJoining         DateTime?
+  areaOfResponsibility  String?
+
+  // Management information
+  assignedRegion        String?
+  assignedDistricts     String?  // comma-separated
+  managedFarmers        Int?     @default(0)
+  managedBuyers         Int?     @default(0)
+  permissionLevel       String?  @default("Coordinator") // Viewer, Coordinator, Manager, Administrator
+}
+
+// ─────────────────────────────────────────────
+// Farm
+// ─────────────────────────────────────────────
+model Farm {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  farmerProfileId String        @db.ObjectId
+  farmerProfile   FarmerProfile @relation(fields: [farmerProfileId], references: [id])
+  location        String
+  size            Float?
+}
+
+// ─────────────────────────────────────────────
+// Crop Lot (extended with AI verification)
+// ─────────────────────────────────────────────
+model Lot {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  lotNumber       String        @unique // e.g. LOT-KL-1024
+  farmerProfileId String        @db.ObjectId
+  farmerProfile   FarmerProfile @relation(fields: [farmerProfileId], references: [id])
+  crop            String
+  quantity        Float         // in kg
+  grade           String
+  expectedPrice   Float         // per kg
+  location        String
+  harvestDate     DateTime
+  qualityNotes    String?
+  status          String        @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD, CANCELLED
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // AI Grade Verification fields
+  cropImageUrl          String?  // base64 or URL
+  aiVerifiedGrade       String?
+  aiConfidence          Int?
+  cropDetected          String?
+  cropMatches           Boolean?
+  gradeMatches          Boolean?
+  aiQualityIndicators   String?  // JSON string
+  aiReason              String?
+  verificationStatus    String?  // VERIFIED, NEEDS_REVIEW, UNVERIFIED, FAILED
+  verificationTimestamp DateTime?
+
+  offers          Offer[]
+  transactions    Transaction[]
+  shipmentItems   ShipmentItem[]
+}
+
+// ─────────────────────────────────────────────
+// Buyer Requirement
+// ─────────────────────────────────────────────
+model Requirement {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  buyerProfileId String       @db.ObjectId
+  buyerProfile   BuyerProfile @relation(fields: [buyerProfileId], references: [id])
+  crop           String
+  quantity       Float
+  grade          String
+  maxPrice       Float
+  location       String
+  paymentTerms   String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Offer
+// ─────────────────────────────────────────────
+model Offer {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  lotId          String       @db.ObjectId
+  lot            Lot          @relation(fields: [lotId], references: [id])
+  buyerProfileId String       @db.ObjectId
+  buyerProfile   BuyerProfile @relation(fields: [buyerProfileId], references: [id])
+  price          Float
+  quantity       Float
+  paymentTerms   String
+  message        String?
+  matchScore     Int?
+  status         String       @default("PENDING") // PENDING, COUNTERED, ACCEPTED, REJECTED, CANCELLED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  transactions   Transaction[]
+}
+
+// ─────────────────────────────────────────────
+// Transaction
+// ─────────────────────────────────────────────
+model Transaction {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  txNumber       String       @unique // e.g. TX-2018
+  lotId          String       @db.ObjectId
+  lot            Lot          @relation(fields: [lotId], references: [id])
+  offerId        String       @db.ObjectId
+  offer          Offer        @relation(fields: [offerId], references: [id])
+  quantity       Float
+  totalAmount    Float
+  status         String       @default("CONFIRMED")
+  paymentStatus  String       @default("PENDING")
+  step           Int          @default(1) // for UI journey tracking
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  disputes       Dispute[]
+}
+
+// ─────────────────────────────────────────────
+// Dispute
+// ─────────────────────────────────────────────
+model Dispute {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  transactionId  String       @db.ObjectId
+  transaction    Transaction  @relation(fields: [transactionId], references: [id])
+  raisedById     String       @db.ObjectId // User ID
+  issueType      String
+  description    String
+  priority       String       @default("Medium")
+  status         String       @default("OPEN")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Transport / Consolidated Delivery Tracking
+// ─────────────────────────────────────────────
+model Shipment {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  shipmentNumber  String         @unique // e.g. FG-TR-1024
+  buyerName       String
+  buyerVerified   Boolean        @default(false)
+  destination     String
+  godownName      String?
+  godownCity      String?
+  vehicleNumber   String?
+  driverName      String?
+  status          String         @default("PICKUP_SCHEDULED")
+  // PICKUP_SCHEDULED, PICKUP_ASSIGNED, PRODUCE_COLLECTED, IN_TRANSIT_TO_GODOWN,
+  // ARRIVED_AT_GODOWN, QUALITY_VERIFICATION, CONSOLIDATED, DISPATCHED_TO_BUYER,
+  // OUT_FOR_DELIVERY, DELIVERED
+  expectedDelivery DateTime?
+  totalQuantity   Float?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items           ShipmentItem[]
+}
+
+model ShipmentItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  shipmentId  String   @db.ObjectId
+  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  lotId       String?  @db.ObjectId
+  lot         Lot?     @relation(fields: [lotId], references: [id])
+  farmerName  String
+  farmerLocation String
+  crop        String
+  quantity    Float
+  pickupPoint String?
+  status      String   @default("PENDING") // PENDING, COLLECTED, IN_TRANSIT, DELIVERED
+  createdAt   DateTime @default(now())
+}
